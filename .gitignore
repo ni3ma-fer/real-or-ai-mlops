@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+kaggle.json
+*.pem
+id_*
+
+# Données et modèles (gérés hors Git : MLflow, Kaggle)
+data/*
+!data/.gitkeep
+mlruns/
+mlartifacts/
+*.onnx
+*.pt
+*.pth
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+
+# Rapports générés
+loadtest/reports/
+monitoring/drift/reports/
+
+# Éditeurs / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
