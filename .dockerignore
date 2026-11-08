@@ -1,0 +1,5 @@
+# Seuls api/ et shared/ sont utiles à l'image : on n'envoie pas les 8 Go de données à Docker.
+*
+!api/
+!shared/
+**/__pycache__

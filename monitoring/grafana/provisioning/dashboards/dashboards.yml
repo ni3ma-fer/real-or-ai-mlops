@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: real-or-ai
+    folder: ""
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

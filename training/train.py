@@ -9,6 +9,7 @@ Prérequis : python training/extract_embeddings.py
 
 import argparse
 import json
+import os
 import sys
 import tempfile
 import time
@@ -101,7 +102,8 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--holdout", default="4,8", help="ids des générateurs exclus de l'entraînement (vide = aucun)")
     p.add_argument("--C", type=float, default=1.0, help="régularisation de la régression logistique")
-    p.add_argument("--tracking-uri", default=f"sqlite:///{(ROOT / 'mlflow.db').as_posix()}")
+    p.add_argument("--tracking-uri", default=os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000"),
+                   help="serveur MLflow (celui du docker compose par défaut)")
     p.add_argument("--no-alias", action="store_true", help="ne pas promouvoir en champion")
     args = p.parse_args()
     holdout = [int(h) for h in args.holdout.split(",") if h.strip()]

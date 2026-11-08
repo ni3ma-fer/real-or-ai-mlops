@@ -46,3 +46,11 @@ Tous les chiffres mesurés au fil du projet, avec leur contexte. Machine : PC po
 - Taille : **352 Mo** ; latence : **≈ 52 ms par image** sur CPU (110 ms mesurés quand le PC était chargé par un autre calcul).
 - Vérification : écart ONNX vs PyTorch < 0,0001.
 - MLflow : modèle `real-or-ai` version 1, alias `champion`.
+
+## Niveau 0 — système complet en local (mesuré le 2026-11-08)
+
+- 4 conteneurs lancés par `docker compose up` : MLflow, API (FastAPI + ONNX Runtime), Prometheus, Grafana.
+- Démarrage de l'API : téléchargement du modèle (352 Mo) depuis MLflow + chargement ≈ **3 s**.
+- Test de bout en bout : 400 images (50 par catégorie) envoyées une par une → 400 réponses en 32 s.
+  - Latence côté serveur : **médiane 64 ms, p95 94 ms** par image (prétraitement + modèle).
+  - Scores identiques à l'entraînement (aux variations près sur 50 images) : vraies photos 96 %, BigGAN 100 %, Midjourney 66 %, Wukong 54 % → le comportement est le même en production qu'à l'entraînement.
