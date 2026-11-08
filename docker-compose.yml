@@ -76,7 +76,8 @@ services:
 
   # Test de charge (ne démarre pas avec « up ») :
   #   docker compose --profile loadtest run --rm locust
-  # Réglages : USERS, SPAWN_RATE, RUN_TIME (variables d'environnement)
+  # Réglages : USERS, SPAWN_RATE, RUN_TIME, REPORT (nom du rapport)
+  # Contre la production : TARGET_HOST=http://<IP-VM> KEYS_FILE=loadtest/.keys.prod.env
   locust:
     image: locustio/locust:2.42.2
     profiles: [loadtest]
@@ -84,17 +85,19 @@ services:
     volumes:
       - ./loadtest:/mnt/loadtest
       - ./data/samples:/mnt/data/samples:ro
-    env_file: [loadtest/.keys.env]
+    env_file: ["${KEYS_FILE:-loadtest/.keys.env}"]
     environment:
       USERS: ${USERS:-40}
       SPAWN_RATE: ${SPAWN_RATE:-0.25}
       RUN_TIME: ${RUN_TIME:-3m}
+      TARGET_HOST: ${TARGET_HOST:-http://api:8000}
+      REPORT: ${REPORT:-run}
     entrypoint: ["sh", "-c"]
     command:
       - >
-        API_KEYS="$$ALICE_KEY,$$BOB_KEY" locust -f loadtest/locustfile.py --host http://api:8000
+        API_KEYS="$$ALICE_KEY,$$BOB_KEY" locust -f loadtest/locustfile.py --host $$TARGET_HOST
         --headless --users $$USERS --spawn-rate $$SPAWN_RATE --run-time $$RUN_TIME
-        --csv loadtest/reports/run --csv-full-history --html loadtest/reports/report.html --only-summary
+        --csv loadtest/reports/$$REPORT --csv-full-history --html loadtest/reports/$$REPORT.html --only-summary
     depends_on: [api]
 
 volumes:

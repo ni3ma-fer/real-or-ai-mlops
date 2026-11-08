@@ -37,6 +37,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
+        mlflow.set_registry_uri(args.source)  # sinon MLflow cherche le registre dans une base locale par défaut
         model_dir = Path(download_artifacts(artifact_uri=f"models:/{NAME}/{mv.version}",
                                             dst_path=str(tmp / "model"), tracking_uri=args.source))
         onnx_file = next(model_dir.rglob("*.onnx"))
@@ -44,6 +45,7 @@ def main() -> None:
                   for a in ("reference_embeddings.npy", "metrics.json")]
 
         mlflow.set_tracking_uri(args.target)
+        mlflow.set_registry_uri(args.target)
         mlflow.set_experiment(NAME)
         with mlflow.start_run(run_name=f"promoted-from-dev-v{mv.version}"):
             mlflow.log_params(run.data.params)

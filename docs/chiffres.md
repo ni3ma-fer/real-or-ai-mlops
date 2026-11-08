@@ -79,3 +79,33 @@ Montée progressive de 0 à 40 utilisateurs virtuels en 160 s (1 nouvel utilisat
 - Zone confortable : **jusqu'à ~12 utilisateurs simultanés (≈ 9 req/s) avec p95 < 200 ms**.
 - `/usage/me` (lecture SQL seule) : médiane 36 ms → c'est bien le modèle qui coûte, pas la base.
 - Point de départ pour le niveau 3 (quantization, scaling horizontal) : chiffres à battre.
+
+## Niveau 1 — production sur VM (mesuré le 2026-11-08)
+
+VM de production : Ubuntu 24.04 créée avec Multipass sur Hyper-V (sur le PC), **2 vCPU, 4 Go RAM, 25 Go disque**. La VM du prof (Azure) était injoignable.
+
+### Déploiement en une commande (`scripts/deploy.sh ubuntu@<IP> --ship-images`)
+- Premier déploiement sur VM vierge : **13 min 42 s** au total, dont l'installation de Docker par internet (connexion lente ~200 Ko/s) pour l'essentiel.
+- Copie des 5 images Docker du PC vers la VM (~4 Go) : **1 min 49 s** (API 19 s, Prometheus 15 s, Grafana 25 s, MLflow 35 s, PostgreSQL 15 s) — au lieu de >1 h de téléchargement.
+- Promotion du modèle dev → prod (`scripts/promote_model.sh`, tunnel SSH) : **29 s**, modèle chargé automatiquement par l'API.
+
+### Sécurité vérifiée depuis l'extérieur
+- API sur le port 80 : `/predict` sans clé → **401** ; avec clé → prédiction identique au dev (Midjourney : 0,1346).
+- Ports MLflow 5000, Grafana 3000, Prometheus 9090, PostgreSQL 5432 : **fermés** depuis l'extérieur (accessibles seulement par tunnel SSH).
+- Mots de passe de prod générés aléatoirement sur la VM (`openssl rand`), jamais dans Git.
+
+### Test de charge sur la production
+Locust lancé depuis le PC vers la VM, 0 → 30 utilisateurs en 150 s, 3 min.
+
+| Utilisateurs | Requêtes/s | Latence médiane | Latence p95 |
+|---|---|---|---|
+| 4 | 2,0 | 150 ms | 190 ms |
+| 10 | 7,4 | 160 ms | 330 ms |
+| 13 | 8,5 | 300 ms | 1 000 ms |
+| 18 | 9,7 | 770 ms | 1 400 ms |
+| 30 | 9,7 | 2 400 ms | 3 500 ms |
+
+- **1 430 requêtes, 0 erreur.**
+- **Capacité de la prod ≈ 10 requêtes/s** (2 vCPU) contre ≈ 20 req/s en local (6 CPU pour Docker) → la capacité suit le nombre de cœurs : argument pour le scaling horizontal (niveau 3).
+- Zone confortable : **~10 utilisateurs simultanés, p95 < 350 ms**.
+- Suivi d'usage en prod : alice 682 requêtes, bob 629 → comptées par utilisateur dans PostgreSQL.
