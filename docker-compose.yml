@@ -20,6 +20,9 @@ services:
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --artifacts-destination /mlflow/artifacts
       --allowed-hosts "localhost:5000,127.0.0.1:5000,mlflow:5000,localhost:5001,127.0.0.1:5001"
+    environment:
+      # Pas de processus de « jobs » MLflow (fonctions GenAI inutiles ici) : ~10 processus et 2 Go de RAM en moins
+      MLFLOW_SERVER_ENABLE_JOB_EXECUTION: "false"
     ports: ["5000:5000"]
     volumes: [mlflow-data:/mlflow]
     healthcheck:
