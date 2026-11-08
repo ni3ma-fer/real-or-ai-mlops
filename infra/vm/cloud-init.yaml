@@ -1,0 +1,8 @@
+#cloud-config
+# Configuration initiale de la VM de production locale (Multipass / Hyper-V).
+# Ajoute la clé SSH de déploiement ; Docker est installé par scripts/deploy.sh.
+ssh_authorized_keys:
+  - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILq/NkBVrKEZo4Ds5czdjjKYp6UQ3MCdFy0iFMyMWrSN realorai-deploy
+package_update: true
+packages: [curl, ca-certificates]
+timezone: Europe/Paris

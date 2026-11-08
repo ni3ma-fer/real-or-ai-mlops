@@ -1,0 +1,57 @@
+# CI/CD : à chaque push sur main, on teste puis on déploie en production.
+#   1. test   (machine GitHub)     : tests unitaires + construction de l'image Docker de l'API
+#   2. deploy (runner dans la VM)  : docker compose up --build, puis vérification de l'API
+# Le runner est installé dans la VM (scripts/setup_runner.sh) : il va chercher les tâches
+# sur GitHub, donc la VM n'a pas besoin d'être joignable depuis internet.
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      - name: Dépendances
+        run: pip install -r api/requirements.txt pytest httpx
+      - name: Tests
+        run: pytest -v
+      - name: Construction de l'image de l'API
+        run: docker build -f api/Dockerfile -t real-or-ai-api:${{ github.sha }} .
+
+  deploy:
+    needs: test
+    if: github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: [self-hosted, prod]
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v5
+      - name: Déploiement
+        run: |
+          echo "${GITHUB_SHA::7}" > DEPLOYED_COMMIT
+          docker compose --env-file ~/real-or-ai.env -f docker-compose.yml -f docker-compose.prod.yml \
+            up -d --build --remove-orphans --quiet-pull
+      - name: Vérification de l'API
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" localhost/health || true)
+            if [ "$code" = "200" ]; then curl -s localhost/health; exit 0; fi
+            sleep 5
+          done
+          if [ "$code" = "503" ]; then echo "::warning::API en ligne mais aucun modèle champion en production"; exit 0; fi
+          docker compose logs api --tail 50
+          exit 1

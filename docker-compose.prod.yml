@@ -1,0 +1,19 @@
+# Réglages de production, ajoutés par-dessus docker-compose.yml :
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file ~/real-or-ai.env up -d --build
+#
+# Seule l'API est ouverte vers l'extérieur (port 80). MLflow, Prometheus et Grafana
+# n'écoutent que sur 127.0.0.1 : on y accède depuis son PC par un tunnel SSH, ex.
+#   ssh -i ~/.ssh/realorai_deploy -L 3001:127.0.0.1:3000 ubuntu@<IP-VM>   -> http://localhost:3001
+
+services:
+  api:
+    ports: !override ["80:8000"]
+
+  mlflow:
+    ports: !override ["127.0.0.1:5000:5000"]
+
+  prometheus:
+    ports: !override ["127.0.0.1:9090:9090"]
+
+  grafana:
+    ports: !override ["127.0.0.1:3000:3000"]
