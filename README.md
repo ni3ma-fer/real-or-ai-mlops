@@ -9,23 +9,27 @@ Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en
 ## Architecture
 
 ```
-  Utilisateur ──► UI Streamlit ──┐
-  Client (curl + token) ─────────┤  header X-API-Key
-                                 ▼
-                    ┌──────────────────────┐      ┌────────────┐
-                    │ API FastAPI          │─────►│ PostgreSQL │ clés, logs d'usage
-                    │ + ONNX Runtime       │      └────────────┘
-                    └──┬────────────────┬──┘
-     charge le modèle  │                │ /metrics
-                       ▼                ▼
-             ┌─────────────────┐   ┌────────────┐    ┌─────────┐
-             │ MLflow          │   │ Prometheus │───►│ Grafana │
-             │ (registry)      │   └─────▲──────┘    └─────────┘
-             └─────────────────┘         │
-                               ┌─────────┴────────┐
-                               │ Job de drift     │
-                               │ (Evidently)      │
-                               └──────────────────┘
+ Utilisateur ─► Interface Streamlit ─┐
+ Client (curl + X-API-Key) ──────────┤
+                                     ▼
+                         ┌───────────────────────┐
+                         │ Passerelle nginx      │  répartition + rejeu si panne
+                         └───┬───────┬───────┬───┘
+                             ▼       ▼       ▼
+                     ┌─────────────────────────────┐      ┌────────────┐
+                     │ API FastAPI × N copies      │─────►│ PostgreSQL │ clés, usage,
+                     │ ONNX Runtime (INT8)         │      └─────▲──────┘ embeddings
+                     │ champion + challenger 10 %  │            │
+                     └──┬───────────────────┬──────┘            │
+   alias MLflow (30 s)  │                   │ /metrics   ┌──────┴───────┐
+                        ▼                   ▼            │ Job de drift │
+                 ┌────────────┐      ┌────────────┐◄─────│ (domain      │
+                 │ MLflow     │◄─────│ Prometheus │      │  classifier) │
+                 │ registry   │      └─────┬──────┘      └──────────────┘
+                 └────────────┘            ▼  alertes
+                                     ┌─────────┐
+                                     │ Grafana │
+                                     └─────────┘
 ```
 
 ## Structure du dépôt
@@ -50,9 +54,9 @@ Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en
 - [x] Phase 0 — Mise en place
 - [x] Phase 1 — Modèle
 - [x] Phase 2 — Niveau 0 : tout le système en local avec une commande
-- [ ] Phase 3 — Niveau 1 : déploiement automatique sur VM, token, suivi d'usage, test de charge
-- [ ] Phase 4 — Niveau 2 : UI, data drift, MLflow
-- [ ] Phase 5 — Niveau 3 : quantization, Kubernetes, scaling, canary
+- [x] Phase 3 — Niveau 1 : déploiement automatique sur VM, token, suivi d'usage, test de charge
+- [x] Phase 4 — Niveau 2 : UI, data drift, MLflow (versioning + mise à jour à chaud)
+- [x] Phase 5 — Niveau 3 : quantization INT8, scaling horizontal, canary
 - [ ] Phase 6 — Rendu
 
 ## Lancer le projet
@@ -65,6 +69,7 @@ docker compose up -d --build        # lance MLflow, l'API, Prometheus et Grafana
 
 | Service | Adresse |
 |---|---|
+| Interface web | http://localhost:8501 |
 | API (doc interactive) | http://localhost:8000/docs |
 | MLflow | http://localhost:5000 |
 | Prometheus | http://localhost:9090 |
@@ -98,3 +103,28 @@ Test de charge (rapport HTML dans `loadtest/reports/`) : créer `loadtest/.keys.
 docker compose --profile loadtest run --rm locust            # 40 utilisateurs, 3 min
 USERS=10 RUN_TIME=1m docker compose --profile loadtest run --rm locust
 ```
+
+## Production (VM)
+
+```bash
+multipass launch 24.04 --name realorai-prod --cpus 2 --memory 4G --disk 25G --cloud-init infra/vm/cloud-init.yaml  # une fois, à la main
+scripts/deploy.sh ubuntu@<IP> --ship-images     # déploiement en une commande (idempotent)
+scripts/promote_model.sh ubuntu@<IP>            # copie le champion de dev vers la prod
+scripts/promote_model.sh ubuntu@<IP> --version 4 --alias challenger   # canary
+scripts/set_alias.sh ubuntu@<IP> promote        # challenger -> champion (rechargé à chaud)
+scripts/set_alias.sh ubuntu@<IP> rollback       # arrêt du canary
+```
+
+Réglages de prod dans `~/real-or-ai.env` sur la VM : `API_REPLICAS=2`, `ORT_THREADS=1`, `CANARY_WEIGHT=0.1`.
+CI/CD : `.github/workflows/ci-cd.yml` (tests + images, puis déploiement par un runner installé dans la VM : `scripts/setup_runner.sh`).
+
+## Démo du drift
+
+```bash
+python scripts/simulate_traffic.py --scenario normal --n 200   # score ~0,6 : ok
+python scripts/simulate_traffic.py --scenario drift  --n 200   # score ~0,8 : DRIFT + alerte Prometheus
+python training/train.py --holdout "" --no-alias               # v2 avec tous les générateurs
+python training/quantize.py --version 2                        # v2 en INT8 (recalibrée)
+```
+
+Tous les chiffres mesurés : [docs/chiffres.md](docs/chiffres.md).

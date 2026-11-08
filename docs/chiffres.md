@@ -162,3 +162,28 @@ Locust lancé depuis le PC vers la VM, 0 → 30 utilisateurs en 150 s, 3 min.
 - Répartition nginx entre les 3 copies : 629 / 629 / 605 requêtes (round robin).
 - **3 copies sur une seule machine = pas plus de débit** : elles partagent les mêmes CPU. Le scaling horizontal augmente la capacité quand les copies sont sur des machines différentes (ex. nœuds Kubernetes).
 - **Résilience** : une copie tuée en plein test de charge → 1 erreur sur 750 (0,13 %) ; avec le rejeu automatique nginx (`proxy_next_upstream`) → **0 erreur sur 701**.
+
+## Démo complète rejouée en PRODUCTION (VM, 2026-11-08 soir)
+
+| Étape | Résultat |
+|---|---|
+| 1. Trafic normal (v1) | drift **0,597 → ok**, 91,5 % de bonnes réponses |
+| 2. Arrivée de nouvelles IA (v1) | drift **0,811 → DRIFT**, 73,5 % (Midjourney 69 %, Wukong 59 %) |
+| 3. Canary : v2-INT8 en `challenger`, 10 % du trafic | **32 / 300 requêtes (10,7 %)** vers le challenger |
+| 4. Promotion `challenger → champion` (scripts/set_alias.sh) | API passée sur le nouveau modèle **en 32 s, sans redémarrage** |
+| 5. Même trafic « nouvelles IA » | **89,0 %** de bonnes réponses (Midjourney 95 %, Wukong 85 %), 200 images en 13 s au lieu de 17 s |
+
+### Capacité de la production (VM 2 vCPU, Locust depuis le PC, 0 → 30 utilisateurs)
+| | v1 float32, 1 copie | v2 INT8, 2 copies (1 cœur chacune) |
+|---|---|---|
+| 10 utilisateurs | 7,5 req/s, médiane 190 ms | 7,8 req/s, **médiane 92 ms** |
+| 20 utilisateurs | 9,4 req/s, médiane 1 000 ms | 13,2 req/s, médiane 150 ms |
+| 30 utilisateurs | 9,2 req/s, médiane 2 250 ms | **18,1 req/s, médiane 430 ms** |
+| Erreurs | 0 / 1 430 | 0 / 1 745 |
+
+→ **Capacité de la prod ×2** (≈ 9 → ≈ 18 req/s), latence médiane ÷5 à forte charge.
+
+### Incident de production résolu
+- Après ajout des services, la VM (4 Go) saturait : charge système 36, 9 Mo de RAM libre, timeouts.
+- Cause trouvée avec `docker stats` : **MLflow 3 = 2 Go** (4 workers + ~10 processus de « jobs » GenAI).
+- Correctif : `--workers 1` + `MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false` → **MLflow 2 Go → 419 Mo**, charge système revenue à ~2.

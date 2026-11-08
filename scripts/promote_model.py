@@ -41,8 +41,9 @@ def main() -> None:
         model_dir = Path(download_artifacts(artifact_uri=f"models:/{NAME}/{mv.version}",
                                             dst_path=str(tmp / "model"), tracking_uri=args.source))
         onnx_file = next(model_dir.rglob("*.onnx"))
+        available = {a.path for a in MlflowClient(args.source).list_artifacts(mv.run_id)}
         extras = [Path(download_artifacts(run_id=mv.run_id, artifact_path=a, dst_path=str(tmp), tracking_uri=args.source))
-                  for a in ("reference_embeddings.npy", "metrics.json")]
+                  for a in ("reference_embeddings.npy", "metrics.json", "quantization.json") if a in available]
 
         mlflow.set_tracking_uri(args.target)
         mlflow.set_registry_uri(args.target)
@@ -54,7 +55,10 @@ def main() -> None:
             for f in extras:
                 mlflow.log_artifact(str(f))
             info = mlflow.onnx.log_model(onnx.load(str(onnx_file)), name="model", registered_model_name=NAME)
-        MlflowClient(args.target).set_registered_model_alias(NAME, args.alias, info.registered_model_version)
+        target = MlflowClient(args.target)
+        for k, v in (mv.tags or {}).items():  # ex. quantized=int8
+            target.set_model_version_tag(NAME, info.registered_model_version, k, v)
+        target.set_registered_model_alias(NAME, args.alias, info.registered_model_version)
     print(f"Production : {NAME} version {info.registered_model_version} -> alias « {args.alias} » sur {args.target}")
 
 
