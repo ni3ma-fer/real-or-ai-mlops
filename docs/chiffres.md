@@ -54,3 +54,28 @@ Tous les chiffres mesurés au fil du projet, avec leur contexte. Machine : PC po
 - Test de bout en bout : 400 images (50 par catégorie) envoyées une par une → 400 réponses en 32 s.
   - Latence côté serveur : **médiane 64 ms, p95 94 ms** par image (prétraitement + modèle).
   - Scores identiques à l'entraînement (aux variations près sur 50 images) : vraies photos 96 %, BigGAN 100 %, Midjourney 66 %, Wukong 54 % → le comportement est le même en production qu'à l'entraînement.
+
+## Niveau 1 — sécurité, suivi d'usage, test de charge (mesuré le 2026-11-08)
+
+### Sécurité par clé API
+- Sans clé → **401** ; clé inconnue ou révoquée → **401** ; clé valide mais non admin sur `/admin/usage` → **403**.
+- En base : seule l'empreinte SHA-256 de la clé est stockée (64 caractères hexadécimaux), jamais la clé.
+- Cache des clés : 60 s → une seule requête SQL par clé et par minute au lieu d'une par appel.
+
+### Test de charge Locust
+Montée progressive de 0 à 40 utilisateurs virtuels en 160 s (1 nouvel utilisateur toutes les 4 s), chacun envoie une image puis attend 0,5 à 1,5 s. Durée 3 min. API = 1 seul conteneur, 1 processus. ⚠️ Locust tourne sur le même PC que l'API et lui prend du CPU.
+
+| Utilisateurs | Requêtes/s | Latence médiane | Latence p95 |
+|---|---|---|---|
+| 4 | 1,9 | 71 ms | 120 ms |
+| 12 | 8,9 | 100 ms | 190 ms |
+| 19 | 14,3 | 180 ms | 550 ms |
+| 23 | 15,9 | 290 ms | 980 ms |
+| 30 | 18,8 | 560 ms | 1 100 ms |
+| 40 | 20,0 | 1 100 ms | 1 600 ms |
+
+- Total : **2 517 requêtes, 0 erreur (0,00 %)**.
+- **Capacité maximale ≈ 20 requêtes/s** : au-delà de ~23 utilisateurs, le débit plafonne et ce sont les temps de réponse qui augmentent (les requêtes font la queue).
+- Zone confortable : **jusqu'à ~12 utilisateurs simultanés (≈ 9 req/s) avec p95 < 200 ms**.
+- `/usage/me` (lecture SQL seule) : médiane 36 ms → c'est bien le modèle qui coûte, pas la base.
+- Point de départ pour le niveau 3 (quantization, scaling horizontal) : chiffres à battre.

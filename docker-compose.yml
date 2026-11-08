@@ -23,6 +23,20 @@ services:
       retries: 12
     restart: unless-stopped
 
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: realorai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-realorai}
+      POSTGRES_DB: realorai
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "realorai"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
   api:
     build:
       context: .
@@ -31,9 +45,11 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_NAME: real-or-ai
       MODEL_ALIAS: champion
+      DATABASE_URL: postgresql+psycopg://realorai:${POSTGRES_PASSWORD:-realorai}@postgres:5432/realorai
     ports: ["8000:8000"]
     depends_on:
       mlflow: {condition: service_healthy}
+      postgres: {condition: service_healthy}
     restart: unless-stopped
 
   prometheus:
@@ -48,7 +64,7 @@ services:
     image: grafana/grafana:12.3.0
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/api.json
     volumes:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -58,7 +74,31 @@ services:
     depends_on: [prometheus]
     restart: unless-stopped
 
+  # Test de charge (ne démarre pas avec « up ») :
+  #   docker compose --profile loadtest run --rm locust
+  # Réglages : USERS, SPAWN_RATE, RUN_TIME (variables d'environnement)
+  locust:
+    image: locustio/locust:2.42.2
+    profiles: [loadtest]
+    working_dir: /mnt
+    volumes:
+      - ./loadtest:/mnt/loadtest
+      - ./data/samples:/mnt/data/samples:ro
+    env_file: [loadtest/.keys.env]
+    environment:
+      USERS: ${USERS:-40}
+      SPAWN_RATE: ${SPAWN_RATE:-0.25}
+      RUN_TIME: ${RUN_TIME:-3m}
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        API_KEYS="$$ALICE_KEY,$$BOB_KEY" locust -f loadtest/locustfile.py --host http://api:8000
+        --headless --users $$USERS --spawn-rate $$SPAWN_RATE --run-time $$RUN_TIME
+        --csv loadtest/reports/run --csv-full-history --html loadtest/reports/report.html --only-summary
+    depends_on: [api]
+
 volumes:
+  postgres-data:
   mlflow-data:
   prometheus-data:
   grafana-data:

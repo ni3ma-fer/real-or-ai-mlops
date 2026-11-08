@@ -40,7 +40,9 @@ Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en
 | `monitoring/` | Prometheus, dashboards Grafana, job de détection de drift |
 | `loadtest/` | Scénarios Locust |
 | `infra/` | Manifests Kubernetes, Terraform |
-| `scripts/` | Utilitaires (téléchargement des données, création de clés API…) |
+| `scripts/` | Utilitaires (téléchargement des données, images d'exemple) |
+| `shared/` | Code commun entraînement / API (préparation des images) |
+| `docs/` | Chiffres pour la présentation |
 | `.github/workflows/` | CI/CD |
 
 ## Avancement
@@ -82,6 +84,17 @@ Tester :
 
 ```bash
 python scripts/export_samples.py                    # images d'exemple dans data/samples/
-curl -F "file=@data/samples/Real/real_0000.jpg" http://localhost:8000/predict
+docker compose exec api python -m app.cli create-key alice       # affiche la clé une seule fois
+curl -H "X-API-Key: roa_..." -F "file=@data/samples/Real/real_0000.jpg" http://localhost:8000/predict
 # {"label":"real","prob_ai":0.0825,"model_version":"1","latency_ms":83.7}
+curl -H "X-API-Key: roa_..." http://localhost:8000/usage/me              # sa consommation
+```
+
+Gestion des clés : `python -m app.cli create-key <nom> [--admin]`, `list`, `revoke <début de clé>` (dans le conteneur `api`). Une clé admin donne accès à `GET /admin/usage` (usage de chaque utilisateur).
+
+Test de charge (rapport HTML dans `loadtest/reports/`) : créer `loadtest/.keys.env` avec `ALICE_KEY=...` et `BOB_KEY=...`, puis
+
+```bash
+docker compose --profile loadtest run --rm locust            # 40 utilisateurs, 3 min
+USERS=10 RUN_TIME=1m docker compose --profile loadtest run --rm locust
 ```

@@ -17,3 +17,4 @@ PROB_AI = Histogram(
     buckets=tuple(i / 10 for i in range(1, 11)),
 )
 MODEL_INFO = Gauge("model_info", "Version du modèle chargé (1 = actif)", ["model_version"])
+USER_REQUESTS = Counter("user_predict_requests_total", "Appels à /predict par utilisateur", ["user"])

@@ -9,6 +9,8 @@ venv/
 
 # Secrets
 .env
+*.env
+!.env.example
 kaggle.json
 *.pem
 id_*
