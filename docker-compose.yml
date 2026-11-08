@@ -1,8 +1,14 @@
 # Tout le système en une commande :  docker compose up -d --build
-#   API        http://localhost:8000/docs
+#   Interface  http://localhost:8501
+#   API        http://localhost:8000/docs   (passerelle nginx -> N copies de l'API)
 #   MLflow     http://localhost:5000
 #   Prometheus http://localhost:9090
 #   Grafana    http://localhost:3000  (admin / admin)
+#
+# Réglages (variables d'environnement ou fichier .env) :
+#   API_REPLICAS=3     nombre de copies de l'API (scaling horizontal)
+#   CANARY_WEIGHT=0.1  part du trafic envoyée au modèle « challenger » (canary)
+#   ORT_THREADS=2      cœurs utilisés par chaque copie (0 = tous)
 
 name: real-or-ai
 
@@ -45,8 +51,43 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       MODEL_NAME: real-or-ai
       MODEL_ALIAS: champion
+      CANARY_ALIAS: challenger
+      CANARY_WEIGHT: ${CANARY_WEIGHT:-0}
+      ORT_THREADS: ${ORT_THREADS:-0}
       DATABASE_URL: postgresql+psycopg://realorai:${POSTGRES_PASSWORD:-realorai}@postgres:5432/realorai
-    ports: ["8000:8000"]
+    deploy:
+      replicas: ${API_REPLICAS:-1}
+    depends_on:
+      mlflow: {condition: service_healthy}
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+  # Point d'entrée unique : répartit les requêtes entre les copies de l'API (round robin)
+  gateway:
+    image: nginx:1.29.3-alpine
+    volumes: [./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro]
+    ports: ["8000:80"]
+    depends_on: [api]
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    environment:
+      API_URL: http://gateway
+    ports: ["8501:8501"]
+    depends_on: [gateway]
+    restart: unless-stopped
+
+  drift:
+    build:
+      context: .
+      dockerfile: monitoring/drift/Dockerfile
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      DATABASE_URL: postgresql+psycopg://realorai:${POSTGRES_PASSWORD:-realorai}@postgres:5432/realorai
+      DRIFT_INTERVAL: ${DRIFT_INTERVAL:-30}
     depends_on:
       mlflow: {condition: service_healthy}
       postgres: {condition: service_healthy}
@@ -56,6 +97,7 @@ services:
     image: prom/prometheus:v3.7.3
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus-data:/prometheus
     ports: ["9090:9090"]
     restart: unless-stopped
@@ -90,7 +132,7 @@ services:
       USERS: ${USERS:-40}
       SPAWN_RATE: ${SPAWN_RATE:-0.25}
       RUN_TIME: ${RUN_TIME:-3m}
-      TARGET_HOST: ${TARGET_HOST:-http://api:8000}
+      TARGET_HOST: ${TARGET_HOST:-http://gateway}
       REPORT: ${REPORT:-run}
     entrypoint: ["sh", "-c"]
     command:
@@ -98,7 +140,7 @@ services:
         API_KEYS="$$ALICE_KEY,$$BOB_KEY" locust -f loadtest/locustfile.py --host $$TARGET_HOST
         --headless --users $$USERS --spawn-rate $$SPAWN_RATE --run-time $$RUN_TIME
         --csv loadtest/reports/$$REPORT --csv-full-history --html loadtest/reports/$$REPORT.html --only-summary
-    depends_on: [api]
+    depends_on: [gateway]
 
 volumes:
   postgres-data:

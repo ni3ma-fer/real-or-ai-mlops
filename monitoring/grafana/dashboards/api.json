@@ -1,10 +1,10 @@
 {
   "uid": "real-or-ai-api",
-  "title": "Real or AI — API",
+  "title": "Real or AI — Production",
   "schemaVersion": 41,
   "refresh": "5s",
   "time": {
-    "from": "now-15m",
+    "from": "now-30m",
     "to": "now"
   },
   "tags": [
@@ -14,122 +14,11 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Modèle en production",
+      "title": "Modèles chargés",
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 6,
-        "h": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "textMode": "value_and_name"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "model_info == 1",
-          "legendFormat": "version {{model_version}}",
-          "instant": true
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "type": "stat",
-      "title": "Requêtes / s",
-      "gridPos": {
-        "x": 6,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "textMode": "value"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum(rate(api_requests_total[1m]))",
-          "legendFormat": "",
-          "instant": true
-        }
-      ]
-    },
-    {
-      "id": 3,
-      "type": "stat",
-      "title": "Latence p95",
-      "gridPos": {
-        "x": 12,
-        "y": 0,
-        "w": 6,
-        "h": 4
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
-        },
-        "textMode": "value"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_duration_seconds_bucket[1m])))",
-          "legendFormat": "",
-          "instant": true
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "type": "stat",
-      "title": "Taux d'erreurs",
-      "gridPos": {
-        "x": 18,
-        "y": 0,
-        "w": 6,
+        "w": 5,
         "h": 4
       },
       "datasource": {
@@ -148,12 +37,127 @@
             "lastNotNull"
           ]
         },
-        "textMode": "value"
+        "textMode": "value_and_name",
+        "colorMode": "value"
       },
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(api_requests_total{status!=\"200\"}[1m])) / sum(rate(api_requests_total[1m]))",
+          "expr": "model_info",
+          "legendFormat": "v{{model_version}} {{alias}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Copies de l'API",
+      "gridPos": {
+        "x": 5,
+        "y": 0,
+        "w": 3,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=\"api\"} == 1)",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Requêtes / s",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(api_requests_total{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Latence p95",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_duration_seconds_bucket{endpoint=\"/predict\"}[1m])))",
           "legendFormat": "",
           "instant": true
         }
@@ -161,10 +165,134 @@
     },
     {
       "id": 5,
+      "type": "stat",
+      "title": "Taux d'erreurs",
+      "gridPos": {
+        "x": 16,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(rate(api_requests_total{endpoint=\"/predict\",status!=\"200\"}[1m])) or vector(0)) / sum(rate(api_requests_total{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Drift",
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "textMode": "value",
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "drift_detected",
+          "legendFormat": "",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 7,
       "type": "timeseries",
-      "title": "Requêtes par code HTTP",
+      "title": "Score de drift (seuil en pointillés)",
       "gridPos": {
         "x": 0,
+        "y": 4,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0.4,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "drift_score",
+          "legendFormat": "score"
+        },
+        {
+          "refId": "B",
+          "expr": "drift_threshold",
+          "legendFormat": "seuil"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Canary : prédictions par version du modèle",
+      "gridPos": {
+        "x": 12,
         "y": 4,
         "w": 12,
         "h": 8
@@ -182,18 +310,18 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (rate(api_requests_total[1m]))",
-          "legendFormat": "{{status}}"
+          "expr": "sum by (model_version) (rate(predictions_total[1m]))",
+          "legendFormat": "v{{model_version}}"
         }
       ]
     },
     {
-      "id": 6,
+      "id": 9,
       "type": "timeseries",
-      "title": "Latence (requête complète et modèle seul)",
+      "title": "Latence /predict",
       "gridPos": {
-        "x": 12,
-        "y": 4,
+        "x": 0,
+        "y": 12,
         "w": 12,
         "h": 8
       },
@@ -210,28 +338,56 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.5, sum by (le) (rate(api_request_duration_seconds_bucket[1m])))",
-          "legendFormat": "requête p50"
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(api_request_duration_seconds_bucket{endpoint=\"/predict\"}[1m])))",
+          "legendFormat": "p50"
         },
         {
           "refId": "B",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_duration_seconds_bucket[1m])))",
-          "legendFormat": "requête p95"
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(api_request_duration_seconds_bucket{endpoint=\"/predict\"}[1m])))",
+          "legendFormat": "p95"
         },
         {
           "refId": "C",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(model_inference_seconds_bucket[1m])))",
-          "legendFormat": "modèle p95"
+          "expr": "histogram_quantile(0.95, sum by (le, model_version) (rate(model_inference_seconds_bucket[1m])))",
+          "legendFormat": "modèle v{{model_version}} p95"
         }
       ]
     },
     {
-      "id": 7,
+      "id": 10,
+      "type": "timeseries",
+      "title": "Requêtes par copie de l'API (scaling)",
+      "gridPos": {
+        "x": 12,
+        "y": 12,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (instance) (rate(api_requests_total{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 11,
       "type": "timeseries",
       "title": "Prédictions : vraie photo vs IA",
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 20,
         "w": 12,
         "h": 8
       },
@@ -254,12 +410,68 @@
       ]
     },
     {
-      "id": 8,
+      "id": 12,
       "type": "timeseries",
-      "title": "Probabilité « IA » moyenne",
+      "title": "Requêtes par utilisateur",
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (user) (rate(user_predict_requests_total[1m]))",
+          "legendFormat": "{{user}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Codes HTTP",
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (rate(api_requests_total{endpoint=\"/predict\"}[1m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Part d'images prédites « IA » (fenêtre de drift)",
+      "gridPos": {
+        "x": 12,
+        "y": 28,
         "w": 12,
         "h": 8
       },
@@ -276,8 +488,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "rate(prediction_prob_ai_sum[5m]) / rate(prediction_prob_ai_count[5m])",
-          "legendFormat": "moyenne"
+          "expr": "drift_window_share_ai",
+          "legendFormat": "part IA"
         }
       ]
     }

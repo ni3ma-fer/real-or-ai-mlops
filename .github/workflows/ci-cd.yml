@@ -29,8 +29,11 @@ jobs:
         run: pip install -r api/requirements.txt pytest httpx
       - name: Tests
         run: pytest -v
-      - name: Construction de l'image de l'API
-        run: docker build -f api/Dockerfile -t real-or-ai-api:${{ github.sha }} .
+      - name: Construction des images (API, interface, drift)
+        run: |
+          docker build -f api/Dockerfile -t real-or-ai-api:${{ github.sha }} .
+          docker build -f ui/Dockerfile -t real-or-ai-ui:${{ github.sha }} .
+          docker build -f monitoring/drift/Dockerfile -t real-or-ai-drift:${{ github.sha }} .
 
   deploy:
     needs: test

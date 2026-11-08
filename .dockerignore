@@ -1,5 +1,7 @@
-# Seuls api/ et shared/ sont utiles à l'image : on n'envoie pas les 8 Go de données à Docker.
+# On n'envoie à Docker que le code utile aux images (pas les 8 Go de données).
 *
 !api/
 !shared/
+!ui/
+!monitoring/drift/
 **/__pycache__

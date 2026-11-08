@@ -109,3 +109,56 @@ Locust lancé depuis le PC vers la VM, 0 → 30 utilisateurs en 150 s, 3 min.
 - **Capacité de la prod ≈ 10 requêtes/s** (2 vCPU) contre ≈ 20 req/s en local (6 CPU pour Docker) → la capacité suit le nombre de cœurs : argument pour le scaling horizontal (niveau 3).
 - Zone confortable : **~10 utilisateurs simultanés, p95 < 350 ms**.
 - Suivi d'usage en prod : alice 682 requêtes, bob 629 → comptées par utilisateur dans PostgreSQL.
+
+## Niveau 2 — interface, drift, MLflow (mesuré le 2026-11-08)
+
+### Détection de data drift (méthode « domain classifier », comme Evidently pour les embeddings)
+- Référence : 2 000 embeddings CLIP du jeu d'entraînement du modèle champion (artefact MLflow).
+- Toutes les 30 s : les 200 dernières images reçues (dédoublonnées) vs la référence → AUC d'un classifieur logistique (validation croisée 5 plis). 0,5 = indiscernable, 1 = totalement différent.
+- Calibration du seuil (fenêtres de 200 images sans doublons) :
+
+| Trafic | Score |
+|---|---|
+| Normal (vraies photos + 5 IA connues) | 0,55 – 0,64 |
+| 50 % Midjourney/Wukong | 0,72 – 0,76 |
+| 70 % Midjourney/Wukong | 0,81 – 0,83 |
+| 25 % inconnus seulement | ≈ 0,53 (non détecté : limite de la méthode) |
+
+- **Seuil retenu : 0,70.** Piège rencontré : les images envoyées plusieurs fois gonflaient le score (0,69 au lieu de 0,60, fausse alerte) → dédoublonnage.
+- Démo en conditions réelles (simulateur de trafic → API → base → job de drift) :
+  - trafic normal : **score 0,606 → pas d'alerte** ; modèle v1 : **94 %** de bonnes réponses ;
+  - trafic « nouvelles IA » (70 % Midjourney/Wukong) : **score 0,826 → DRIFT**, alerte Prometheus `DataDrift` ; modèle v1 : **74,5 %** (Wukong 52 %).
+
+### Réaction : modèle v2, canary, promotion à chaud
+- v2 = réentraînée avec les 7 générateurs : Midjourney 77,6 % → **92,0 %**, Wukong 57,8 % → **86,0 %**, vraies photos 92,7 % → 90,8 % (compromis).
+- Canary : v2 avec l'alias `challenger`, **10 % du trafic** → mesuré **31 requêtes sur 300 (10,3 %)** vers la v2.
+- Promotion : alias `champion` déplacé sur v2 dans MLflow → **l'API charge la v2 en 17 s, sans redémarrage** (vérification toutes les 30 s).
+- Même trafic « nouvelles IA » : **74,5 % (v1) → 88,5 % (v2)** de bonnes réponses.
+- Le score de drift reste élevé (0,78) avec la v2 : le trafic contient 70 % de Midjourney/Wukong contre 14 % dans l'entraînement de la v2. Le drift mesure « les données ont changé », la performance dit si le modèle s'en sort.
+
+### Interface utilisateur
+- Streamlit (port 8501) : analyse d'une image, consommation personnelle, onglet surveillance (drift) réservé aux admins. L'interface n'a pas de modèle : elle appelle l'API avec la clé de l'utilisateur.
+
+## Niveau 3 — quantization, scaling horizontal, canary (mesuré le 2026-11-08)
+
+### Quantization INT8 (ONNX Runtime, dynamique, couches MatMul)
+| | float32 (v2) | INT8 (v4) |
+|---|---|---|
+| Taille | 352 Mo | **96 Mo (3,7x plus petit)** |
+| Latence par image (CPU) | 60 ms | **37 ms (1,6x plus rapide)** |
+| Bonnes réponses (800 images de validation) | 92,9 % | **92,1 % (−0,8 pt)** |
+| Accord des prédictions fp32/int8 | | 94 % |
+
+- Problème rencontré : sans correction, l'INT8 décalait les scores vers « IA » → vraies photos **92 % → 63 %**. La quantization « par canal » était pire (0 %).
+- Solution : **recalibration** (Platt) sur 1 000 images d'**entraînement** : 2 paramètres ajoutés avant la sigmoïde finale (logit' = 1,734 × logit − 2,009) → vraies photos 90 %.
+
+### Tests de charge comparés (local, montée à 40 utilisateurs, 2 min)
+| Configuration | Débit au plateau | Latence médiane | p95 | Erreurs |
+|---|---|---|---|---|
+| v2 float32, 1 copie | 17,3 req/s | 810 ms | 2 400 ms | 0 |
+| **v4 INT8, 1 copie** | **23,7 req/s (+37 %)** | **250 ms** | 1 200 ms | 0 |
+| v4 INT8, 3 copies (2 cœurs chacune) | 22,9 req/s | 360 ms | 1 300 ms | 0 |
+
+- Répartition nginx entre les 3 copies : 629 / 629 / 605 requêtes (round robin).
+- **3 copies sur une seule machine = pas plus de débit** : elles partagent les mêmes CPU. Le scaling horizontal augmente la capacité quand les copies sont sur des machines différentes (ex. nœuds Kubernetes).
+- **Résilience** : une copie tuée en plein test de charge → 1 erreur sur 750 (0,13 %) ; avec le rejeu automatique nginx (`proxy_next_upstream`) → **0 erreur sur 701**.

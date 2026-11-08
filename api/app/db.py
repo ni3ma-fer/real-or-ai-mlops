@@ -3,7 +3,7 @@
 import os
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, create_engine
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, LargeBinary, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+psycopg://realorai:realorai@postgres:5432/realorai")
@@ -49,6 +49,29 @@ class Usage(Base):
     label: Mapped[str | None] = mapped_column(String(10), nullable=True)
     prob_ai: Mapped[float | None] = mapped_column(Float, nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class Embedding(Base):
+    """Empreinte CLIP de chaque image reçue : la matière première de la détection de drift."""
+    __tablename__ = "embeddings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    model_version: Mapped[str] = mapped_column(String(20))
+    prob_ai: Mapped[float] = mapped_column(Float)
+    vector: Mapped[bytes] = mapped_column(LargeBinary)  # 512 float32 = 2 Ko
+
+
+class DriftReport(Base):
+    """Résultat de chaque passage du job de drift."""
+    __tablename__ = "drift_reports"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    window_size: Mapped[int] = mapped_column(Integer)
+    score: Mapped[float] = mapped_column(Float)  # AUC du classifieur référence vs récent (0,5 = pas de drift)
+    threshold: Mapped[float] = mapped_column(Float)
+    drift: Mapped[bool] = mapped_column(Boolean)
+    share_ai: Mapped[float] = mapped_column(Float)
+    reference_version: Mapped[str] = mapped_column(String(20))
 
 
 def init_db() -> None:

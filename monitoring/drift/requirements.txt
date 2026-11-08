@@ -1,0 +1,6 @@
+numpy==2.3.4
+scikit-learn==1.7.2
+sqlalchemy==2.0.44
+psycopg[binary]==3.2.12
+mlflow-skinny==3.18.0
+prometheus-client==0.23.1

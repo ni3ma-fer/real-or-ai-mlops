@@ -1,0 +1,22 @@
+groups:
+  - name: real-or-ai
+    rules:
+      - alert: DataDrift
+        expr: drift_detected == 1
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "Data drift détecté (score {{ $value }})"
+          description: "Les images récentes ne ressemblent plus aux images d'entraînement : vérifier, réentraîner, déployer en canary."
+      - alert: ApiDown
+        expr: sum(up{job="api"}) == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "Plus aucune instance de l'API ne répond"
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(api_request_duration_seconds_bucket{endpoint="/predict"}[2m]))) > 1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "Latence p95 de /predict > 1 s"
