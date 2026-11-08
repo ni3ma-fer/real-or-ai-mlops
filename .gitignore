@@ -18,6 +18,7 @@ data/*
 !data/.gitkeep
 mlruns/
 mlartifacts/
+mlflow.db
 *.onnx
 *.pt
 *.pth

@@ -45,8 +45,8 @@ Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en
 
 ## Avancement
 
-- [ ] Phase 0 — Mise en place
-- [ ] Phase 1 — Modèle
+- [x] Phase 0 — Mise en place
+- [x] Phase 1 — Modèle
 - [ ] Phase 2 — Niveau 0 : tout le système en local avec une commande
 - [ ] Phase 3 — Niveau 1 : déploiement automatique sur VM, token, suivi d'usage, test de charge
 - [ ] Phase 4 — Niveau 2 : UI, data drift, MLflow
