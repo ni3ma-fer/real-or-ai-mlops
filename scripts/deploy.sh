@@ -48,9 +48,11 @@ ssh_vm 'if [ -f ~/real-or-ai.env ]; then echo "    déjà présents (~/real-or-a
 BUILD="--build"
 if $SHIP; then
   echo "5/6 Copie des images Docker depuis ce PC..."
-  # Image de l'API construite à partir du commit (pas des fichiers modifiés non commités)
-  git archive --format=tar HEAD | docker build -q -f api/Dockerfile -t real-or-ai-api:latest - >/dev/null
-  for img in real-or-ai-api:latest $(docker compose -f docker-compose.yml config --images | grep -v real-or-ai-api); do
+  # Images construites à partir du commit (pas des fichiers modifiés non commités)
+  for svc in api:api/Dockerfile ui:ui/Dockerfile drift:monitoring/drift/Dockerfile; do
+    git archive --format=tar HEAD | docker build -q -f "${svc#*:}" -t "real-or-ai-${svc%%:*}:latest" - >/dev/null
+  done
+  for img in real-or-ai-api:latest real-or-ai-ui:latest real-or-ai-drift:latest              $(docker compose -f docker-compose.yml config --images | grep -v '^real-or-ai-'); do
     local_id=$(docker image inspect -f '{{.Id}}' "$img" 2>/dev/null) || {
       docker pull -q "$img" >/dev/null; local_id=$(docker image inspect -f '{{.Id}}' "$img"); }
     if [ "$(ssh_vm "sudo docker image inspect -f '{{.Id}}' $img 2>/dev/null" || true)" = "$local_id" ]; then
