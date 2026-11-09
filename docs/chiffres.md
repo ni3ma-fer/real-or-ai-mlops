@@ -187,3 +187,18 @@ Locust lancé depuis le PC vers la VM, 0 → 30 utilisateurs en 150 s, 3 min.
 - Après ajout des services, la VM (4 Go) saturait : charge système 36, 9 Mo de RAM libre, timeouts.
 - Cause trouvée avec `docker stats` : **MLflow 3 = 2 Go** (4 workers + ~10 processus de « jobs » GenAI).
 - Correctif : `--workers 1` + `MLFLOW_SERVER_ENABLE_JOB_EXECUTION=false` → **MLflow 2 Go → 419 Mo**, charge système revenue à ~2.
+
+## Vérifications pour la soutenance (2026-11-08, ~21 h 30 – 22 h 50)
+
+### Métriques complémentaires du modèle v1 (recalculées depuis data/embeddings, mêmes réglages que training/train.py)
+- Validation, générateurs connus : **6 000 images** (3 500 vraies, 2 500 IA).
+- Accuracy **92,0 %**, AUC **0,979** (identiques aux chiffres ci-dessus), **F1 (classe IA) 0,905**.
+- Matrice de confusion : vraies photos 3 246 bien classées / 254 prises pour de l'IA (92,7 %) ; images IA 2 275 bien classées / 225 prises pour des vraies (91,0 %).
+
+### Prod en direct (VM 172.22.107.55)
+- `/predict` sans clé → **401** ; avec clé → **200** (vraie photo : prob_ai 0,0113, modèle v2 INT8, 65–67 ms côté API).
+- `/admin/usage` : alice **2 865** requêtes, bob **1 494**.
+- Interface : vraie photo reconnue à **99 %**, en **75 ms**.
+- Drift en prod : score **0,80** (seuil 0,70) → alerte Prometheus `DataDrift` à l'état « firing ».
+- `docker stats` après correctif : MLflow **441 Mo**, chaque copie de l'API ~**900 Mo**, charge système **0,05–0,20**.
+- Déploiement `scripts/deploy.sh --ship-images` relancé deux fois : **succès**, commit 15c218d sur la VM, images api / ui / drift copiées en **8 s** chacune, API « Déployé ».

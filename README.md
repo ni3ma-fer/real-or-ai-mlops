@@ -1,9 +1,10 @@
 # real-or-ai-mlops
 
-Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en production avec une chaîne MLOps complète : API sécurisée par token, suivi d'usage par utilisateur, versioning MLflow, détection de data drift, monitoring, test de charge, puis Kubernetes, canary et quantization.
+Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en production avec une chaîne MLOps complète : API sécurisée par token, suivi d'usage par utilisateur, versioning MLflow, détection de data drift, monitoring, test de charge, puis canary, quantization et scaling horizontal.
 
 - **Modèle** : encodeur d'images CLIP + tête de classification (réel / IA), exporté en ONNX.
-- **Données** : [Tiny-GenImage](https://huggingface.co/datasets/TheKernel01/Tiny-GenImage) (35 000 images, 8 générateurs), puis [Synthbuster](https://zenodo.org/records/10066460) (DALL·E 3, Firefly, Midjourney v5, SDXL).
+- **Données** : [Tiny-GenImage](https://huggingface.co/datasets/TheKernel01/Tiny-GenImage) (35 000 images, 8 générateurs). Midjourney et Wukong sont mis de côté pour simuler l'arrivée d'une IA inconnue (drift).
+- **Présentation** : [Google Slides](https://docs.google.com/presentation/d/1YOgQoxVnxqUs9czgvHxsTyexAKE1qzJPjsycuNABz7Y/edit?usp=sharing) · copie dans [`docs/presentation/presentation_finale.pptx`](docs/presentation/presentation_finale.pptx)
 - **Drift** : chaque nouveau générateur produit des images que le modèle n'a jamais vues. Le système doit le détecter, puis on réentraîne et on déploie la nouvelle version en canary.
 
 ## Architecture
@@ -46,7 +47,7 @@ Détecteur d'images générées par IA (« vraie photo ou image IA ? »), mis en
 | `infra/` | Manifests Kubernetes, Terraform |
 | `scripts/` | Utilitaires (téléchargement des données, images d'exemple) |
 | `shared/` | Code commun entraînement / API (préparation des images) |
-| `docs/` | Chiffres pour la présentation |
+| `docs/` | Présentation finale, texte de l'oral et chiffres |
 | `.github/workflows/` | CI/CD |
 
 ## Avancement
